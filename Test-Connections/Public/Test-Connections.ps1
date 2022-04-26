@@ -1,3 +1,39 @@
+class Target {
+    [String]$TargetName
+    [String]$DNS
+    [PSObject]$Job
+    [Int]$PingCount
+    [String]$Status
+    [Int]$Latency
+    [Int]$LatencySum
+    [Int]$SuccessSum
+
+    Target() {}
+    Target([String]$TargetName,[PSObject]$Job){
+        $this.TargetName = $TargetName
+        $this.Job = $Job
+        $this.PingCount = 0
+        $this.Status = $null
+        $this.Latency = 0
+        $this.LatencySum = 0
+        $this.SuccessSum = 0
+    }
+
+    [String]ToString() {
+        Return ("{0} {1} {2} {3}" -f $this.Status, $this.TargetName, $this.Latency, $this.PingCount )
+    }
+
+    [void]Update([Object]$Update) {
+        $last = $Update | Select-Object -Last 1
+        $this.PingCount=$last.Ping
+        $this.Status=$last.Status
+        $this.Latency=$last.Latency
+        $this.LatencySum+=($Update.Latency | Measure-Object -Sum).Sum
+        $this.SuccessSum+=($Update.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
+    }
+
+}
+
 function Test-Connections {
     <#
     .Synopsis
@@ -48,15 +84,7 @@ function Test-Connections {
             If ($pscmdlet.ShouldProcess("$TargetName")) {
                 Write-Host "Pinging $TargetName"
                 If ($Repeat) {
-                    $Targets+=[PSCustomObject]@{
-                        Target=$TargetName
-                        Job=Start-Job -ScriptBlock {Param ($TargetName) Test-Connection -TargetName $TargetName -Ping -Repeat} -ArgumentList $TargetName
-                        Ping=0
-                        Status=$null
-                        Latency=0
-                        LatencySum=0
-                        SuccessSum=0
-                    }
+                    $Targets += [Target]::new($TargetName,(Start-Job -ScriptBlock {Param ($TargetName) Test-Connection -TargetName $TargetName -Ping -Repeat} -ArgumentList $TargetName))
                 }
             }
             else {
@@ -92,15 +120,11 @@ function Test-Connections {
 
                     # Perform other work here such as process pending jobs or process out current jobs.
                     ForEach ($Target in $Targets) {
-                        $temp=Receive-Job -Id $Target.Job.Id
-                        If ($temp.ping -gt $Target.Ping) {
-                            $Target.Ping=$temp.Ping | Select-Object -Last 1
-                            $Target.Status=$temp.Status | Select-Object -Last 1
-                            $Target.Latency=$temp.Latency | Select-Object -Last 1
-                            $Target.LatencySum+=($temp.Latency | Measure-Object -Sum).Sum
-                            $Target.SuccessSum+=($temp.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
+                        $Update=Receive-Job -Id $Target.Job.Id
+                        If ($Update.ping -gt $Target.PingCount) {
+                            $Target.Update($Update)
                         }
-                        $Target
+                        Write-Host "$Target"
                     }
                     
 
