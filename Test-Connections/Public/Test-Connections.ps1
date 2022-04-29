@@ -97,6 +97,8 @@ function Test-Connections {
                 Write-Host "Pinging $TargetName"
                 If ($Repeat) {
                     $Targets += [Target]::new($TargetName,(Start-Job -ScriptBlock {Param ($TargetName) Test-Connection -TargetName $TargetName -Ping -Repeat} -ArgumentList $TargetName))
+                } else {
+                    $Targets += [Target]::new($TargetName,(Start-Job -ScriptBlock {Param ($TargetName) Test-Connection -TargetName $TargetName -Ping} -ArgumentList $TargetName))
                 }
             }
             else {
@@ -105,43 +107,44 @@ function Test-Connections {
         }
         End {
             Write-Verbose "End $($MyInvocation.MyCommand)"
-            If ($Repeat) {
-                # https://blog.sheehans.org/2018/10/27/powershell-taking-control-over-ctrl-c/
-                # Change the default behavior of CTRL-C so that the script can intercept and use it versus just terminating the script.
-                [Console]::TreatControlCAsInput=$True
-                # Sleep for 1 second and then flush the key buffer so any previously pressed keys are discarded and the loop can monitor for the use of
-                #   CTRL-C. The sleep command ensures the buffer flushes correctly.
-                Start-Sleep -Seconds 1
-                $Host.UI.RawUI.FlushInputBuffer()
-
-                # Continue to loop while there are pending or currently executing jobs.
-                While ($Targets.Job.State -contains "Running") {
-                    # If a key was pressed during the loop execution, check to see if it was CTRL-C (aka "3"), and if so exit the script after clearing
-                    #   out any running jobs and setting CTRL-C back to normal.
-                    If ($Host.UI.RawUI.KeyAvailable -and ($Key=$Host.UI.RawUI.ReadKey("AllowCtrlC,NoEcho,IncludeKeyUp"))) {
-                        If ([Int]$Key.Character -eq 3) {
-                            Write-Host ""
-                            Write-Warning -Message "Removing Test-Connection Jobs"
-                            $Targets.Job | Remove-Job -Force
-                            [Console]::TreatControlCAsInput=$False
-                        }
-                        # Flush the key buffer again for the next loop.
-                        $Host.UI.RawUI.FlushInputBuffer()
-                        Break
+            # https://blog.sheehans.org/2018/10/27/powershell-taking-control-over-ctrl-c/
+            # Change the default behavior of CTRL-C so that the script can intercept and use it versus just terminating the script.
+            [Console]::TreatControlCAsInput=$True
+            # Sleep for 1 second and then flush the key buffer so any previously pressed keys are discarded and the loop can monitor for the use of
+            #   CTRL-C. The sleep command ensures the buffer flushes correctly.
+            Start-Sleep -Seconds 1
+            $Host.UI.RawUI.FlushInputBuffer()
+            # Continue to loop while there are pending or currently executing jobs.
+            While ($Targets.Job.HasMoreData -contains "True") {
+                # If a key was pressed during the loop execution, check to see if it was CTRL-C (aka "3"), and if so exit the script after clearing
+                #   out any running jobs and setting CTRL-C back to normal.
+                If ($Host.UI.RawUI.KeyAvailable -and ($Key=$Host.UI.RawUI.ReadKey("AllowCtrlC,NoEcho,IncludeKeyUp"))) {
+                    If ([Int]$Key.Character -eq 3) {
+                        Write-Host ""
+                        Write-Warning -Message "Removing Test-Connection Jobs"
+                        $Targets.Job | Remove-Job -Force
+                        $killed = $True
+                        [Console]::TreatControlCAsInput=$False
                     }
-
-                    # Perform other work here such as process pending jobs or process out current jobs.
-                    ForEach ($Target in $Targets) {
-                        $Update=Receive-Job -Id $Target.Job.Id
-                        If ($Update.ping -gt $Target.PingCount) {
-                            $Target.Update($Update)
-                        }
-                        Write-Host "$Target"
-                    }
-                    
-
-                    Start-Sleep -Seconds 1
+                    # Flush the key buffer again for the next loop.
+                    $Host.UI.RawUI.FlushInputBuffer()
+                    Break
                 }
+                # Perform other work here such as process pending jobs or process out current jobs.
+                ForEach ($Target in $Targets) {
+                    $Update=Receive-Job -Id $Target.Job.Id
+                    If ($Update.ping -gt $Target.PingCount) {
+                        $Target.Update($Update)
+                    }
+                    Write-Host "$Target"
+                }
+                Write-Host
+                Start-Sleep -Seconds 1
             }
+
+            If (!$killed) {
+                $Targets.Job | Remove-Job -Force
+            }
+
         }
     } #End function
