@@ -20,7 +20,7 @@ class Target {
     }
 
     [String]ToString() {
-        Return ("{0} {1} {2} {3}" -f $this.Status, $this.TargetName, $this.Latency, $this.PingCount )
+        Return ("[{0}] {1} {2}ms {3:0.00}ms (avg) {4} {5:0.00}%" -f $this.Status, $this.TargetName, $this.Latency, $this.AverageLatency(), $this.PingCount, $this.PercentSuccess() )
     }
 
     [void]Update([Object]$Update) {
@@ -30,6 +30,18 @@ class Target {
         $this.Latency=$last.Latency
         $this.LatencySum+=($Update.Latency | Measure-Object -Sum).Sum
         $this.SuccessSum+=($Update.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
+    }
+
+    [int]Count() {
+        Return $this.PingCount
+    }
+
+    [float]PercentSuccess() {
+        Return $this.SuccessSum / $this.PingCount * 100
+    }
+
+    [float]AverageLatency() {
+        Return $this.LatencySum / $this.SuccessSum
     }
 
 }
