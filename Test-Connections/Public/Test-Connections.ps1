@@ -23,6 +23,17 @@ class Target {
         Return ("[{0}] {1} {2}ms {3:0.00}ms (avg) {4} {5:0.00}%" -f $this.Status, $this.TargetName, $this.Latency, $this.AverageLatency(), $this.PingCount, $this.PercentSuccess() )
     }
 
+    [PSCustomObject]ToTable() {
+        Return [PSCustomObject]@{
+            Status = $this.Status
+            TargetName = $this.TargetName
+            Latency = $this.Latency
+            AvgLatency = $this.AverageLatency()
+            Count = $this.PingCount
+            Success = $this.PercentSuccess()
+        }
+    }
+
     [void]Update([Object]$Update) {
         $last = $Update | Select-Object -Last 1
         $this.PingCount=$last.Ping
@@ -107,6 +118,10 @@ function Test-Connections {
         }
         End {
             Write-Verbose "End $($MyInvocation.MyCommand)"
+            Clear-Host
+            $CursorPosition = $Host.UI.RawUI.CursorPosition
+            $CursorPosition.Y = 1
+
             # https://blog.sheehans.org/2018/10/27/powershell-taking-control-over-ctrl-c/
             # Change the default behavior of CTRL-C so that the script can intercept and use it versus just terminating the script.
             [Console]::TreatControlCAsInput=$True
@@ -131,15 +146,19 @@ function Test-Connections {
                     Break
                 }
                 # Perform other work here such as process pending jobs or process out current jobs.
+                
                 ForEach ($Target in $Targets) {
                     $Update=Receive-Job -Id $Target.Job.Id
                     If ($Update.ping -gt $Target.PingCount) {
                         $Target.Update($Update)
                     }
-                    Write-Host "$Target"
+                    #$Target.ToTable()
+                    #Write-Host "$Target"
                 }
-                Write-Host
-                Start-Sleep -Seconds 1
+
+                $Host.UI.RawUI.CursorPosition = $CursorPosition
+                $Targets.ToTable() | Format-Table
+                Start-Sleep -Milliseconds 500
             }
 
             If (!$killed) {
