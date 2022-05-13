@@ -3,7 +3,7 @@ class Target {
     [String]$DNS
     [PSObject]$Job
     [Int]$PingCount
-    [String]$Status
+    [boolean]$Status
     [Int]$Latency
     [Int]$LatencySum
     [Int]$SuccessSum
@@ -37,7 +37,7 @@ class Target {
     [void]Update([Object]$Update) {
         $last = $Update | Select-Object -Last 1
         $this.PingCount=$last.Ping
-        $this.Status=$last.Status
+        $this.Status=$last.Status -eq "Success"
         $this.Latency=$last.Latency
         $this.LatencySum+=($Update.Latency | Measure-Object -Sum).Sum
         $this.SuccessSum+=($Update.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
@@ -48,11 +48,17 @@ class Target {
     }
 
     [float]PercentSuccess() {
-        Return $this.SuccessSum / $this.PingCount * 100
+        If (! $this.PingCount -eq 0) {
+            Return $this.SuccessSum / $this.PingCount * 100
+        }
+        Return 0
     }
 
     [float]AverageLatency() {
-        Return $this.LatencySum / $this.SuccessSum
+        If (! $this.SuccessSum -eq 0) {
+            Return $this.LatencySum / $this.SuccessSum
+        }
+        Return 0
     }
 
 }
@@ -92,11 +98,14 @@ function Test-Connections {
             [Parameter(Mandatory=$True,ValueFromPipeline=$True,HelpMessage="Enter a help message")]
             [string[]]$TargetName,
             [Parameter(Mandatory=$False)]
-            [int]$Count,
+            [int]$Count=4,
 
             [Parameter(Mandatory=$False)]
             [Alias("Continuous")]
-            [switch]$Repeat
+            [switch]$Repeat,
+
+            [Parameter(Mandatory=$False)]
+            [int]$Update=1000
         )
         Begin {
             Write-Verbose "Begin $($MyInvocation.MyCommand)"
@@ -118,10 +127,7 @@ function Test-Connections {
         }
         End {
             Write-Verbose "End $($MyInvocation.MyCommand)"
-            Clear-Host
-            $CursorPosition = $Host.UI.RawUI.CursorPosition
-            $CursorPosition.Y = 1
-
+            
             # https://blog.sheehans.org/2018/10/27/powershell-taking-control-over-ctrl-c/
             # Change the default behavior of CTRL-C so that the script can intercept and use it versus just terminating the script.
             [Console]::TreatControlCAsInput=$True
@@ -146,19 +152,16 @@ function Test-Connections {
                     Break
                 }
                 # Perform other work here such as process pending jobs or process out current jobs.
-                
                 ForEach ($Target in $Targets) {
-                    $Update=Receive-Job -Id $Target.Job.Id
-                    If ($Update.ping -gt $Target.PingCount) {
-                        $Target.Update($Update)
-                    }
-                    #$Target.ToTable()
-                    #Write-Host "$Target"
-                }
+                    $Data=Receive-Job -Id $Target.Job.Id
 
-                $Host.UI.RawUI.CursorPosition = $CursorPosition
-                $Targets.ToTable() | Format-Table
-                Start-Sleep -Milliseconds 500
+                    If ($Data.ping -gt $Target.PingCount) {
+                        $Target.Update($Data)
+                    }
+                    Write-Host "$Target"
+                }
+                Write-Host
+                Start-Sleep -Milliseconds $Update
             }
 
             If (!$killed) {
