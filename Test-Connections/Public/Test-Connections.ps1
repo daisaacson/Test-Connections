@@ -43,6 +43,16 @@ class Target {
         $this.SuccessSum+=($Update.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
     }
 
+    [void]Print() {
+        Write-Host -NoNewline "["
+        If  ($this.Status) {
+            Write-Host -NoNewline -ForegroundColor Green "OKAY"
+        } else {
+            Write-Host -NoNewline -ForegroundColor Red "FAIL"
+        }
+        Write-Host "] $($this.TargetName) $($this.Latency)ms $($this.AverageLatency().ToString("#.#"))ms (avg) $($this.PingCount) $($this.PercentSuccess().ToString("#.#"))%"
+    }
+
     [int]Count() {
         Return $this.PingCount
     }
@@ -108,8 +118,8 @@ function Test-Connections {
             [int]$Update=1000,
 
             [Parameter(Mandatory=$False)]
-            [ValidateSet("Simple","Advanced",ErrorMessage="Output format not supported")]
-            [String]$Output="Simple"
+            [ValidateSet("Plain","Simple","Advanced",ErrorMessage="Output format not supported")]
+            [String]$Output="Advanced"
         )
         Begin {
             Write-Verbose "Begin $($MyInvocation.MyCommand)"
@@ -162,7 +172,15 @@ function Test-Connections {
                     If ($Data.ping -gt $Target.PingCount) {
                         $Target.Update($Data)
                     }
-                    Write-Host "$Target"
+                }
+                # Print Output
+                Switch ($Output) {
+                    "Plain" {
+                        Write-Host "$Targets"
+                    }
+                    "Simple" {
+                        $Targets.Print()
+                    }
                 }
                 Write-Host
                 Start-Sleep -Milliseconds $Update
