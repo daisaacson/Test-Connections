@@ -95,17 +95,21 @@ function Test-Connections {
     [CmdletBinding(SupportsShouldProcess=$True)]
         Param
         (
-            [Parameter(Mandatory=$True,ValueFromPipeline=$True,HelpMessage="Enter a help message")]
+            [Parameter(Mandatory=$True,ValueFromPipeline=$True,HelpMessage="Stop after sending Count pings")]
             [string[]]$TargetName,
             [Parameter(Mandatory=$False)]
             [int]$Count=4,
 
-            [Parameter(Mandatory=$False)]
+            [Parameter(Mandatory=$False,HelpMessage="Continjously send pings")]
             [Alias("Continuous")]
             [switch]$Repeat,
 
+            [Parameter(Mandatory=$False,HelpMessage="Interval between pings")]
+            [int]$Update=1000,
+
             [Parameter(Mandatory=$False)]
-            [int]$Update=1000
+            [ValidateSet("Simple","Advanced",ErrorMessage="Output format not supported")]
+            [String]$Output="Simple"
         )
         Begin {
             Write-Verbose "Begin $($MyInvocation.MyCommand)"
