@@ -146,10 +146,10 @@ function Test-Connections {
                         $Targets.Job | Remove-Job -Force
                         $killed = $True
                         [Console]::TreatControlCAsInput=$False
+                        break
                     }
                     # Flush the key buffer again for the next loop.
                     $Host.UI.RawUI.FlushInputBuffer()
-                    Break
                 }
                 # Perform other work here such as process pending jobs or process out current jobs.
                 ForEach ($Target in $Targets) {
