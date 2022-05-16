@@ -21,3 +21,6 @@ foreach ($import in $Public) {
         Write-Error -Message ("Failed to import public function {0}: {1}" -f $import.fullName, $_)
     }
 }
+
+New-Alias -Name mping -Value Test-Connections -Force
+New-Alias -Name pings -Value Test-Connections -Force

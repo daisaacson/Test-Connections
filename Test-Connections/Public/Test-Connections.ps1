@@ -1,7 +1,7 @@
 class Target {
     [String]$TargetName
     [String]$DNS
-    [PSObject]$Job
+    hidden [PSObject]$Job
     [Int]$PingCount
     [boolean]$Status
     [Int]$Latency
@@ -20,17 +20,24 @@ class Target {
     }
 
     [String]ToString() {
-        Return ("[{0}] {1} {2}ms {3:0.00}ms (avg) {4} {5:0.00}%" -f $this.Status, $this.TargetName, $this.Latency, $this.AverageLatency(), $this.PingCount, $this.PercentSuccess() )
+        Return ("[{0}] {1} {2}ms {3:0.0}ms (avg) {4} {5:0.0}%" -f $this.Status, $this.TargetName, $this.Latency, $this.AverageLatency(), $this.PingCount, $this.PercentSuccess() )
     }
 
     [PSCustomObject]ToTable() {
+        $e = [char]27
+        If ($this.Status) {
+            $s = "${e}[92mOKAY${e}[0m"
+        } else {
+            $s = "${e}[91mFAIL${e}[0m"
+        }
         Return [PSCustomObject]@{
-            Status = $this.Status
+            Status = $s
             TargetName = $this.TargetName
-            Latency = $this.Latency
-            AvgLatency = $this.AverageLatency()
+            ms = $this.Latency
+            Avg = [math]::Round($this.AverageLatency(),1)
             Count = $this.PingCount
-            Success = $this.PercentSuccess()
+            Loss = $this.PingCount - $this.SuccessSum
+            Success = [math]::Round($this.PercentSuccess(),1)
         }
     }
 
@@ -41,16 +48,6 @@ class Target {
         $this.Latency=$last.Latency
         $this.LatencySum+=($Update.Latency | Measure-Object -Sum).Sum
         $this.SuccessSum+=($Update.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
-    }
-
-    [void]Print() {
-        Write-Host -NoNewline "["
-        If  ($this.Status) {
-            Write-Host -NoNewline -ForegroundColor Green "OKAY"
-        } else {
-            Write-Host -NoNewline -ForegroundColor Red "FAIL"
-        }
-        Write-Host "] $($this.TargetName) $($this.Latency)ms $($this.AverageLatency().ToString("#.#"))ms (avg) $($this.PingCount) $($this.PercentSuccess().ToString("#.#"))%"
     }
 
     [int]Count() {
@@ -107,28 +104,27 @@ function Test-Connections {
         (
             [Parameter(Mandatory=$True,ValueFromPipeline=$True,HelpMessage="Stop after sending Count pings")]
             [string[]]$TargetName,
+
             [Parameter(Mandatory=$False)]
+            [Alias("c")]
             [int]$Count=4,
 
             [Parameter(Mandatory=$False,HelpMessage="Continjously send pings")]
-            [Alias("Continuous")]
+            [Alias("Continuous","t")]
             [switch]$Repeat,
 
             [Parameter(Mandatory=$False,HelpMessage="Interval between pings")]
-            [int]$Update=1000,
-
-            [Parameter(Mandatory=$False)]
-            [ValidateSet("Plain","Simple","Advanced",ErrorMessage="Output format not supported")]
-            [String]$Output="Advanced"
+            [Alias("u")]
+            [int]$Update=1000
         )
         Begin {
-            Write-Verbose "Begin $($MyInvocation.MyCommand)"
+            Write-Verbose -Message "Begin $($MyInvocation.MyCommand)"
             $Targets = @()
         }
         Process {
-            Write-Verbose "Process $($MyInvocation.MyCommand)"
+            Write-Verbose -Message "Process $($MyInvocation.MyCommand)"
             If ($pscmdlet.ShouldProcess("$TargetName")) {
-                Write-Host "Pinging $TargetName"
+                Write-Verbose -Message "Pinging $TargetName"
                 If ($Repeat) {
                     $Targets += [Target]::new($TargetName,(Start-Job -ScriptBlock {Param ($TargetName) Test-Connection -TargetName $TargetName -Ping -Repeat} -ArgumentList $TargetName))
                 } else {
@@ -140,8 +136,8 @@ function Test-Connections {
             }
         }
         End {
-            Write-Verbose "End $($MyInvocation.MyCommand)"
-            
+            Write-Verbose -Message "End $($MyInvocation.MyCommand)"
+
             # https://blog.sheehans.org/2018/10/27/powershell-taking-control-over-ctrl-c/
             # Change the default behavior of CTRL-C so that the script can intercept and use it versus just terminating the script.
             [Console]::TreatControlCAsInput=$True
@@ -174,15 +170,8 @@ function Test-Connections {
                     }
                 }
                 # Print Output
-                Switch ($Output) {
-                    "Plain" {
-                        Write-Host "$Targets"
-                    }
-                    "Simple" {
-                        $Targets.Print()
-                    }
-                }
-                Write-Host
+                Write-Host "====== $(Get-Date -Format "yyyy-MM-dd HH:mm:ss") ======"
+                $Targets.ToTable() | Format-Table
                 Start-Sleep -Milliseconds $Update
             }
 
