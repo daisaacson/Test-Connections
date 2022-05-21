@@ -7,6 +7,7 @@ class Target {
     [Int]$Latency
     [Int]$LatencySum
     [Int]$SuccessSum
+    [DateTime]$LastSuccessTime
 
     Target() {}
     Target([String]$TargetName,[PSObject]$Job){
@@ -24,11 +25,12 @@ class Target {
     }
 
     [PSCustomObject]ToTable() {
-        $e = [char]27
-        If ($this.Status) {
-            $s = "${e}[92mOKAY${e}[0m"
+        if ($null -eq $this.status) {
+            $s = "`e[1;38;5;0;48;5;226m PEND `e[0m"
+        } elseif ($this.status) {
+            $s = "`e[1;38;5;0;48;5;46m OKAY `e[0m"
         } else {
-            $s = "${e}[91mFAIL${e}[0m"
+            $s = "`e[1;38;5;0;48;5;196m FAIL `e[0m"
         }
         Return [PSCustomObject]@{
             Status = $s
@@ -38,6 +40,7 @@ class Target {
             Count = $this.PingCount
             Loss = $this.PingCount - $this.SuccessSum
             Success = [math]::Round($this.PercentSuccess(),1)
+            LastSuccess = $this.LastSuccessTime
         }
     }
 
@@ -48,6 +51,9 @@ class Target {
         $this.Latency=$last.Latency
         $this.LatencySum+=($Update.Latency | Measure-Object -Sum).Sum
         $this.SuccessSum+=($Update.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
+        if ($this.Status) {
+            $this.LastSuccessTime = Get-Date
+        }
     }
 
     [int]Count() {
@@ -67,7 +73,6 @@ class Target {
         }
         Return 0
     }
-
 }
 
 function Test-Connections {
@@ -115,7 +120,11 @@ function Test-Connections {
 
             [Parameter(Mandatory=$False,HelpMessage="Interval between pings")]
             [Alias("u")]
-            [int]$Update=1000
+            [int]$Update=1000,
+
+            [Parameter(Mandatory=$False,HelpMessage="Watch")]
+            [Alias("w")]
+            [Switch]$Watch=$False
         )
         Begin {
             Write-Verbose -Message "Begin $($MyInvocation.MyCommand)"
@@ -156,6 +165,12 @@ function Test-Connections {
                         $Targets.Job | Remove-Job -Force
                         $killed = $True
                         [Console]::TreatControlCAsInput=$False
+                        
+                        # If in "Watch" mode, print output one last time
+                        If ($Watch) {
+                            Write-Host "`e[2A"
+                            $Targets.ToTable() | Format-Table
+                        }
                         break
                     }
                     # Flush the key buffer again for the next loop.
@@ -172,6 +187,11 @@ function Test-Connections {
                 # Print Output
                 Write-Host "====== $(Get-Date -Format "yyyy-MM-dd HH:mm:ss") ======"
                 $Targets.ToTable() | Format-Table
+
+                # 
+                If ($Watch) {
+                    Write-Host "`e[$($Targets.length+6)A"
+                }
                 Start-Sleep -Milliseconds $Update
             }
 
