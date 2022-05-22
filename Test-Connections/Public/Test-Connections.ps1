@@ -1,31 +1,38 @@
 function Test-Connections {
     <#
-    .Synopsis
-        Test-Connection to multiple devices.
-    .Description
-        Test-Connection to multiple devcies.
-    .Example
-        Test-Connections -TargetName 8.8.8.8
-        
-        Ping 8.8.8.8
-    .Example
-        Test-Connections 8.8.8.8
-
-        Test-Connections
-    .Notes
-        Name: Test-Connections
-        Author: David Isaacson
-        Last Edit: 2022-04-24
-        Keywords: Test-Connection, ping, icmp
-    .Link
-    
-        https://github.com/daisaacson/test-connections
-    
-    .Inputs
-        TargetName[]
-    .Outputs
-        note
-    #Requires -Version 2.0
+        .Synopsis
+            Test-Connection to multiple devices in parallel.
+        .Description
+            Test-Connection to multiple devcies in parallel with a color and "watch" feature.
+        .Example
+            Test-Connections -TargetName 1.1.1.1 -Watch
+        .Example
+            Test-Connections -TargetName 1.1.1.1, 1.0.0.1, 8.8.4.4, 8.8.8.8, 9.9.9.9 -Watch
+        .Example
+            Test-Connections 1.1.1.1, 1.0.0.1, 8.8.4.4, 8.8.8.8, 9.9.9.9 -Watch -Repeat
+        .Example
+            Test-Connections 1.1.1.1, 1.0.0.1, 8.8.4.4, 8.8.8.8, 9.9.9.9 -Count 10 -Watch
+        .Example
+            Test-Connections $(Get-Content servers.txt) -Watch
+        .Example
+            @("1.1.1.1", "1.0.0.1", "8.8.4.4", "8.8.8.8", "9.9.9.9") | Test-Connections -Watch
+        .Example
+            Connect-VIServer esxi.local
+            Get-VM | Test-Connections -Watch
+        .Example
+            (1..10) | ForEach-Object { "192.168.0.$_" } | Test-Connections -Watch
+        .Notes
+            Name: Test-Connections
+            Author: David Isaacson
+            Last Edit: 2022-04-24
+            Keywords: Test-Connection, ping, icmp
+        .Link
+            https://github.com/daisaacson/test-connections
+        .Inputs
+            TargetName[]
+        .Outputs
+            none
+        #Requires -Version 2.0
     #>
     [CmdletBinding(SupportsShouldProcess=$True)]
         Param
