@@ -61,7 +61,7 @@ function Test-Connections {
                     If ($Repeat) {
                         $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -TargetName $Target -Ping -Repeat} -ArgumentList $Target))
                     } else {
-                        $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -TargetName $Target -Ping} -ArgumentList $Target))
+                        $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target, $Count) Test-Connection -TargetName $Target -Ping -Count $Count} -ArgumentList $Target, $Count))
                     }
                 }
             }
