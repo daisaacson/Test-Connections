@@ -82,8 +82,8 @@ function Test-Connections {
                     #   out any running jobs and setting CTRL-C back to normal.
                     If ($Host.UI.RawUI.KeyAvailable -and ($Key=$Host.UI.RawUI.ReadKey("AllowCtrlC,NoEcho,IncludeKeyUp"))) {
                         If ([Int]$Key.Character -eq 3) {
-                            Write-Host ""
                             Write-Warning -Message "Removing Test-Connection Jobs"
+                            Write-Host "`e[2A"
                             $Targets.Job | Remove-Job -Force
                             $killed = $True
                             [Console]::TreatControlCAsInput=$False
@@ -94,27 +94,29 @@ function Test-Connections {
                         $Host.UI.RawUI.FlushInputBuffer()
                     }
                     # Perform other work here such as process pending jobs or process out current jobs.
+                    
+                    # Get Test-Connection updates 
                     $Targets.Update()
 
                     # Print Output
-                    Write-Host "====== $(Get-Date -Format "yyyy-MM-dd HH:mm:ss") ======"
                     $Targets.ToTable() | Format-Table
 
-                    # 
+                    # Move cursur up to overwrite old output
                     If ($Watch) {
-                        Write-Host "`e[$($Targets.length+6)A"
+                        Write-Host "`e[$($Targets.length+5)A"
                     }
+                    
+                    # Output update delay
                     Start-Sleep -Milliseconds $Update
                 }
 
+                # Clean up jobs
                 If (!$killed) {
                     $Targets.Job | Remove-Job -Force
                 }
 
                 # If in "Watch" mode, print output one last time
                 If ($Watch) {
-                    #Write-Host "====== $(Get-Date -Format "yyyy-MM-dd HH:mm:ss") ======"
-                    If ($Repeat) { Write-Host "`e[1A" }
                     $Targets.ToTable() | Format-Table
                 }
             }
