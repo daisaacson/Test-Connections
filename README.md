@@ -1,7 +1,7 @@
 # Test-Connections
 Like Microsoft's Test-Connection, but in parallel, with color and with a "watch" option.
 
-Works with powershell core as of now.
+Works with [PowerShell](https://docs.microsoft.com/en-us/powershell/scripting/install/installing-powershell?view=powershell-7.2) as of now.
 
 ```powershell
 Test-Connections -TargetName 1.1.1.1 -Watch
