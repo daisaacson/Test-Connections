@@ -44,15 +44,20 @@ class Target {
         }
     }
 
-    [void]Update([Object]$Update) {
-        $last = $Update | Select-Object -Last 1
-        $this.PingCount=$last.Ping
-        $this.Status=$last.Status -eq "Success"
-        $this.Latency=$last.Latency
-        $this.LatencySum+=($Update.Latency | Measure-Object -Sum).Sum
-        $this.SuccessSum+=($Update.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
-        if ($this.Status) {
-            $this.LastSuccessTime = Get-Date
+    [void]Update() {
+        $Data=Receive-Job -Id $this.Job.Id
+
+        # If data is newer than update attributes
+        If ($Data.ping -gt $this.PingCount) {
+            $last = $Data | Select-Object -Last 1
+            $this.PingCount=$last.Ping
+            $this.Status=$last.Status -eq "Success"
+            $this.Latency=$last.Latency
+            $this.LatencySum+=($Data.Latency | Measure-Object -Sum).Sum
+            $this.SuccessSum+=($Data.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
+            if ($this.Status) {
+                $this.LastSuccessTime = Get-Date
+            }
         }
     }
 
@@ -171,13 +176,8 @@ function Test-Connections {
                         $Host.UI.RawUI.FlushInputBuffer()
                     }
                     # Perform other work here such as process pending jobs or process out current jobs.
-                    ForEach ($Target in $Targets) {
-                        $Data=Receive-Job -Id $Target.Job.Id
+                    $Targets.Update()
 
-                        If ($Data.ping -gt $Target.PingCount) {
-                            $Target.Update($Data)
-                        }
-                    }
                     # Print Output
                     Write-Host "====== $(Get-Date -Format "yyyy-MM-dd HH:mm:ss") ======"
                     $Targets.ToTable() | Format-Table
