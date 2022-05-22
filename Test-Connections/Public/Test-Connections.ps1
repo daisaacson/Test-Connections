@@ -133,71 +133,72 @@ function Test-Connections {
         Process {
             Write-Verbose -Message "Process $($MyInvocation.MyCommand)"
             If ($pscmdlet.ShouldProcess("$TargetName")) {
-                Write-Verbose -Message "Pinging $TargetName"
-                If ($Repeat) {
-                    $Targets += [Target]::new($TargetName,(Start-Job -ScriptBlock {Param ($TargetName) Test-Connection -TargetName $TargetName -Ping -Repeat} -ArgumentList $TargetName))
-                } else {
-                    $Targets += [Target]::new($TargetName,(Start-Job -ScriptBlock {Param ($TargetName) Test-Connection -TargetName $TargetName -Ping} -ArgumentList $TargetName))
+                ForEach ($Target in $TargetName) {
+                    Write-Verbose -Message "Pinging $Target"
+                    If ($Repeat) {
+                        $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -TargetName $Target -Ping -Repeat} -ArgumentList $Target))
+                    } else {
+                        $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -TargetName $Target -Ping} -ArgumentList $Target))
+                    }
                 }
-            }
-            else {
-                Write-Host "Not Pinging $TargetName"
             }
         }
         End {
             Write-Verbose -Message "End $($MyInvocation.MyCommand)"
+            If ($pscmdlet.ShouldProcess("$TargetName")) {
+                # https://blog.sheehans.org/2018/10/27/powershell-taking-control-over-ctrl-c/
+                # Change the default behavior of CTRL-C so that the script can intercept and use it versus just terminating the script.
+                [Console]::TreatControlCAsInput=$True
+                # Sleep for 1 second and then flush the key buffer so any previously pressed keys are discarded and the loop can monitor for the use of
+                #   CTRL-C. The sleep command ensures the buffer flushes correctly.
+                Start-Sleep -Seconds 1
+                $Host.UI.RawUI.FlushInputBuffer()
+                # Continue to loop while there are pending or currently executing jobs.
+                While ($Targets.Job.HasMoreData -contains "True") {
+                    # If a key was pressed during the loop execution, check to see if it was CTRL-C (aka "3"), and if so exit the script after clearing
+                    #   out any running jobs and setting CTRL-C back to normal.
+                    If ($Host.UI.RawUI.KeyAvailable -and ($Key=$Host.UI.RawUI.ReadKey("AllowCtrlC,NoEcho,IncludeKeyUp"))) {
+                        If ([Int]$Key.Character -eq 3) {
+                            Write-Host ""
+                            Write-Warning -Message "Removing Test-Connection Jobs"
+                            $Targets.Job | Remove-Job -Force
+                            $killed = $True
+                            [Console]::TreatControlCAsInput=$False
 
-            # https://blog.sheehans.org/2018/10/27/powershell-taking-control-over-ctrl-c/
-            # Change the default behavior of CTRL-C so that the script can intercept and use it versus just terminating the script.
-            [Console]::TreatControlCAsInput=$True
-            # Sleep for 1 second and then flush the key buffer so any previously pressed keys are discarded and the loop can monitor for the use of
-            #   CTRL-C. The sleep command ensures the buffer flushes correctly.
-            Start-Sleep -Seconds 1
-            $Host.UI.RawUI.FlushInputBuffer()
-            # Continue to loop while there are pending or currently executing jobs.
-            While ($Targets.Job.HasMoreData -contains "True") {
-                # If a key was pressed during the loop execution, check to see if it was CTRL-C (aka "3"), and if so exit the script after clearing
-                #   out any running jobs and setting CTRL-C back to normal.
-                If ($Host.UI.RawUI.KeyAvailable -and ($Key=$Host.UI.RawUI.ReadKey("AllowCtrlC,NoEcho,IncludeKeyUp"))) {
-                    If ([Int]$Key.Character -eq 3) {
-                        Write-Host ""
-                        Write-Warning -Message "Removing Test-Connection Jobs"
-                        $Targets.Job | Remove-Job -Force
-                        $killed = $True
-                        [Console]::TreatControlCAsInput=$False
-                        
-                        # If in "Watch" mode, print output one last time
-                        If ($Watch) {
-                            Write-Host "`e[2A"
-                            $Targets.ToTable() | Format-Table
+                            break
                         }
-                        break
+                        # Flush the key buffer again for the next loop.
+                        $Host.UI.RawUI.FlushInputBuffer()
                     }
-                    # Flush the key buffer again for the next loop.
-                    $Host.UI.RawUI.FlushInputBuffer()
-                }
-                # Perform other work here such as process pending jobs or process out current jobs.
-                ForEach ($Target in $Targets) {
-                    $Data=Receive-Job -Id $Target.Job.Id
+                    # Perform other work here such as process pending jobs or process out current jobs.
+                    ForEach ($Target in $Targets) {
+                        $Data=Receive-Job -Id $Target.Job.Id
 
-                    If ($Data.ping -gt $Target.PingCount) {
-                        $Target.Update($Data)
+                        If ($Data.ping -gt $Target.PingCount) {
+                            $Target.Update($Data)
+                        }
                     }
-                }
-                # Print Output
-                Write-Host "====== $(Get-Date -Format "yyyy-MM-dd HH:mm:ss") ======"
-                $Targets.ToTable() | Format-Table
+                    # Print Output
+                    Write-Host "====== $(Get-Date -Format "yyyy-MM-dd HH:mm:ss") ======"
+                    $Targets.ToTable() | Format-Table
 
-                # 
+                    # 
+                    If ($Watch) {
+                        Write-Host "`e[$($Targets.length+6)A"
+                    }
+                    Start-Sleep -Milliseconds $Update
+                }
+
+                If (!$killed) {
+                    $Targets.Job | Remove-Job -Force
+                }
+
+                # If in "Watch" mode, print output one last time
                 If ($Watch) {
-                    Write-Host "`e[$($Targets.length+6)A"
+                    #Write-Host "====== $(Get-Date -Format "yyyy-MM-dd HH:mm:ss") ======"
+                    If ($Repeat) { Write-Host "`e[1A" }
+                    $Targets.ToTable() | Format-Table
                 }
-                Start-Sleep -Milliseconds $Update
             }
-
-            If (!$killed) {
-                $Targets.Job | Remove-Job -Force
-            }
-
         }
     } #End function
