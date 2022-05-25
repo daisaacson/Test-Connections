@@ -25,12 +25,22 @@ class Target {
     }
 
     [PSCustomObject]ToTable() {
-        if ($null -eq $this.status) {
-            $s = "`e[1;38;5;0;48;5;226m PEND `e[0m"
-        } elseif ($this.status) {
-            $s = "`e[1;38;5;0;48;5;46m OKAY `e[0m"
+        If ($Global:PSVersionTable.PSEdition -and $Global:PSVersionTable.PSEdition -eq 'Core') {
+            if ($this.PingCount -eq 0) {
+                $s = "`e[1;38;5;0;48;5;226m PEND `e[0m" # Yellow 
+            } elseif ($this.status) {
+                $s = "`e[1;38;5;0;48;5;46m OKAY `e[0m"  # Green
+            } else {
+                $s = "`e[1;38;5;0;48;5;196m FAIL `e[0m" # Red
+            }
         } else {
-            $s = "`e[1;38;5;0;48;5;196m FAIL `e[0m"
+            if ($this.PingCount -eq 0) {
+                $s = " PEND " 
+            } elseif ($this.status) {
+                $s = "  OK  "
+            } else {
+                $s = " FAIL "
+            }
         }
         Return [PSCustomObject]@{
             Status = $s
@@ -46,17 +56,34 @@ class Target {
 
     [void]Update() {
         $Data=Receive-Job -Id $this.Job.Id
+        If ( ! ($Global:PSVersionTable.PSEdition -and $Global:PSVersionTable.PSEdition -eq 'Core') ) { Start-Sleep -Milliseconds 500 }
 
-        # If data is newer than update attributes
-        If ($Data.ping -gt $this.PingCount) {
-            $last = $Data | Select-Object -Last 1
-            $this.PingCount=$last.Ping
-            $this.Status=$last.Status -eq "Success"
-            $this.Latency=$last.Latency
-            $this.LatencySum+=($Data.Latency | Measure-Object -Sum).Sum
-            $this.SuccessSum+=($Data.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
-            if ($this.Status) {
-                $this.LastSuccessTime = Get-Date
+        If ($Global:PSVersionTable.PSEdition -and $Global:PSVersionTable.PSEdition -eq 'Core') {
+            # If data is newer than update attributes
+            If ($Data.ping -gt $this.PingCount) {
+                $last = $Data | Select-Object -Last 1
+                $this.PingCount=$last.Ping
+                $this.Status=$last.Status -eq "Success"
+                $this.Latency=$last.Latency
+                $this.LatencySum+=($Data.Latency | Measure-Object -Sum).Sum
+                $this.SuccessSum+=($Data.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
+                if ($this.Status) {
+                    $this.LastSuccessTime = Get-Date
+                }
+            }
+        } else {
+            $Count = $this.PingCount + $Data.length
+            Write-Verbose -Message "$($this.PingCount) + $($Data.length)"
+            If ($Count -gt $this.PingCount) {
+                $last = $Data | Select-Object -Last 1
+                $this.PingCount=$Count
+                $this.Status=$last.StatusCode -eq 0
+                $this.Latency=$last.ResponseTime
+                $this.LatencySum+=($Data.ResponseTime | Measure-Object -Sum).Sum
+                $this.SuccessSum+=($Data.StatusCode | Where-Object {$_ -eq 0} | Measure-Object).Count
+                if ($this.Status) {
+                    $this.LastSuccessTime = Get-Date
+                }
             }
         }
     }

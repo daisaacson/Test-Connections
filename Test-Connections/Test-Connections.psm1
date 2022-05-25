@@ -1,3 +1,7 @@
+$ScriptPath = Split-Path $MyInvocation.MyCommand.Path
+$PSModule = $ExecutionContext.SessionState.Module
+$PSModuleRoot = $PSModule.ModuleBase
+
 # Get public and private function definition files.
 # Sort to make sure files that start with '_' get loaded first
 $Private = @(Get-ChildItem -Path $PSScriptRoot\Private -Recurse -Filter "*.ps1") | Sort-Object Name
@@ -22,5 +26,4 @@ foreach ($import in $Public) {
     }
 }
 
-New-Alias -Name mping -Value Test-Connections -Force
 New-Alias -Name pings -Value Test-Connections -Force

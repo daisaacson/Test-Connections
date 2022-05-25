@@ -65,10 +65,18 @@ function Test-Connections {
             If ($pscmdlet.ShouldProcess("$TargetName")) {
                 ForEach ($Target in $TargetName) {
                     Write-Verbose -Message "Pinging $Target"
-                    If ($Repeat) {
-                        $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -TargetName $Target -Ping -Repeat} -ArgumentList $Target))
+                    If ($PSVersionTable.PSEdition -and $PSVersionTable.PSEdition -eq 'Core') {
+                        If ($Repeat) {
+                            $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -TargetName $Target -Ping -Repeat} -ArgumentList $Target))
+                        } else {
+                            $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target, $Count) Test-Connection -TargetName $Target -Ping -Count $Count} -ArgumentList $Target, $Count))
+                        }
                     } else {
-                        $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target, $Count) Test-Connection -TargetName $Target -Ping -Count $Count} -ArgumentList $Target, $Count))
+                        If ($Repeat) {
+                            $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -ComputerName $Target-Repeat} -ArgumentList $Target))
+                        } else {
+                            $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target, $Count) Test-Connection -ComputerName $Target -Count $Count} -ArgumentList $Target, $Count))
+                        }
                     }
                 }
             }

@@ -12,7 +12,7 @@
 RootModule = 'Test-Connections.psm1'
 
 # Version number of this module.
-ModuleVersion = '2022.05.15.0'
+ModuleVersion = '2022.05.22.0'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -33,7 +33,7 @@ Copyright = '(c) daisaacson. All rights reserved.'
 Description = 'Test-Connection to multiple devcies in parallel with a color and "watch" feature.'
 
 # Minimum version of the PowerShell engine required by this module
-# PowerShellVersion = ''
+# PowerShellVersion = '7.2'
 
 # Name of the PowerShell host required by this module
 # PowerShellHostName = ''
@@ -78,7 +78,7 @@ CmdletsToExport = @()
 VariablesToExport = '*'
 
 # Aliases to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no aliases to export.
-AliasesToExport = @("mping", "pings")
+AliasesToExport = @("pings")
 
 # DSC resources to export from this module
 # DscResourcesToExport = @()
