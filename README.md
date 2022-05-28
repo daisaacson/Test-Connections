@@ -46,6 +46,3 @@ Please, please do not run this, that would generate 1622 * 4
 ```powershell
 Invoke-WebRequest https://public-dns.info/nameserver/us.json | ConvertFrom-Json | Select-Object -ExpandProperty ip | Test-Connections -WhatIf
 ```
-
-# ToDo
-Support for Windows PowerShell
