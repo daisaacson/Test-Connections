@@ -48,36 +48,64 @@ function Test-Connections {
             [Alias("Continuous","t")]
             [switch]$Repeat,
 
+            [Parameter(Mandatory=$False,HelpMessage="Delay between pings")]
+            [int]$Delay=1,
+
             [Parameter(Mandatory=$False,HelpMessage="Interval between pings")]
             [Alias("u")]
             [int]$Update=1000,
 
             [Parameter(Mandatory=$False,HelpMessage="Watch")]
             [Alias("w")]
-            [Switch]$Watch=$False
+            [Switch]$Watch
         )
         Begin {
             Write-Verbose -Message "Begin $($MyInvocation.MyCommand)"
             $Targets = @()
+            # Destingwish between Windows PowerShell and PowerShell Core
+            $WindowsPowerShell = $PSVersionTable.PSEdition -and $PSVersionTable.PSEdition -eq 'Desktop'
+            $PowerShellCore = ! $WindowsPowerShell
         }
         Process {
             Write-Verbose -Message "Process $($MyInvocation.MyCommand)"
             If ($pscmdlet.ShouldProcess("$TargetName")) {
                 ForEach ($Target in $TargetName) {
-                    Write-Verbose -Message "Pinging $Target"
-                    If ($PSVersionTable.PSEdition -and $PSVersionTable.PSEdition -eq 'Core') {
+                    Write-Verbose -Message "$Target, $Count, $Delay, $Repeat"
+                    Try {
+                    If ($WindowsPowerShell) {
+                        # Create new Target and Start-Job
+                        # Windows PowerShell 5.1 Test-Connection sucks, wrapper for Test-Connection to behave more like Test-Connection in PowerShell Core
+                        $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {
+                            Param ([String]$TargetName, [int]$Count=4, [int]$Delay=1, [bool]$Repeat)
+                            $Ping = 0
+                            
+                            While ($Repeat -or $Count -gt $Ping) {
+                                Write-Verbose "$($Repeat) $($Count) $($Ping)"
+                                $Ping++
+                                $icmp = Test-Connection -ComputerName $TargetName -Count 1 -ErrorAction SilentlyContinue
+                                If ($icmp) {
+                                    [PSCustomObject]@{
+                                        Ping = $Ping;
+                                        Status = "Success"
+                                        Latency = $icmp.ResponseTime
+                                    }
+                                } else {
+                                    [PSCustomObject]@{
+                                        Ping = $Ping
+                                        Status = "Failed"
+                                        Latency = 9999
+                                    }
+                                }
+                                Start-Sleep -Seconds $Delay
+                            }
+                        } -ArgumentList $Target, $Count, $Delay, $Repeat))
+                    } else {
                         If ($Repeat) {
                             $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -TargetName $Target -Ping -Repeat} -ArgumentList $Target))
                         } else {
                             $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target, $Count) Test-Connection -TargetName $Target -Ping -Count $Count} -ArgumentList $Target, $Count))
                         }
-                    } else {
-                        If ($Repeat) {
-                            $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target) Test-Connection -ComputerName $Target-Repeat} -ArgumentList $Target))
-                        } else {
-                            $Targets += [Target]::new($Target,(Start-Job -ScriptBlock {Param ($Target, $Count) Test-Connection -ComputerName $Target -Count $Count} -ArgumentList $Target, $Count))
-                        }
-                    }
+                    } } Catch { $_ }
                 }
             }
         }
@@ -98,7 +126,7 @@ function Test-Connections {
                     If ($Host.UI.RawUI.KeyAvailable -and ($Key=$Host.UI.RawUI.ReadKey("AllowCtrlC,NoEcho,IncludeKeyUp"))) {
                         If ([Int]$Key.Character -eq 3) {
                             Write-Warning -Message "Removing Test-Connection Jobs"
-                            Write-Host "`e[2A"
+                            If ($PowerShellCore) { Write-Host "`e[2A" }
                             $Targets.Job | Remove-Job -Force
                             $killed = $True
                             [Console]::TreatControlCAsInput=$False
@@ -116,8 +144,8 @@ function Test-Connections {
                     # Print Output
                     $Targets.ToTable() | Format-Table
 
-                    # Move cursur up to overwrite old output
-                    If ($Watch) {
+                    # Move cursor up to overwrite old output
+                    If ($Watch -and $PowerShellCore) {
                         Write-Host "`e[$($Targets.length+5)A"
                     }
                     

@@ -56,34 +56,17 @@ class Target {
 
     [void]Update() {
         $Data=Receive-Job -Id $this.Job.Id
-        If ( ! ($Global:PSVersionTable.PSEdition -and $Global:PSVersionTable.PSEdition -eq 'Core') ) { Start-Sleep -Milliseconds 500 }
 
-        If ($Global:PSVersionTable.PSEdition -and $Global:PSVersionTable.PSEdition -eq 'Core') {
-            # If data is newer than update attributes
-            If ($Data.ping -gt $this.PingCount) {
-                $last = $Data | Select-Object -Last 1
-                $this.PingCount=$last.Ping
-                $this.Status=$last.Status -eq "Success"
+        # If data is newer than update attributes
+        If ($Data.ping -gt $this.PingCount) {
+            $last = $Data | Select-Object -Last 1
+            $this.PingCount=$last.Ping
+            $this.Status=$last.Status -eq "Success"
+            $this.SuccessSum+=($Data.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
+            if ($this.Status) {
                 $this.Latency=$last.Latency
                 $this.LatencySum+=($Data.Latency | Measure-Object -Sum).Sum
-                $this.SuccessSum+=($Data.Status | Where-Object {$_ -eq "Success"} | Measure-Object).Count
-                if ($this.Status) {
-                    $this.LastSuccessTime = Get-Date
-                }
-            }
-        } else {
-            $Count = $this.PingCount + $Data.length
-            Write-Verbose -Message "$($this.PingCount) + $($Data.length)"
-            If ($Count -gt $this.PingCount) {
-                $last = $Data | Select-Object -Last 1
-                $this.PingCount=$Count
-                $this.Status=$last.StatusCode -eq 0
-                $this.Latency=$last.ResponseTime
-                $this.LatencySum+=($Data.ResponseTime | Measure-Object -Sum).Sum
-                $this.SuccessSum+=($Data.StatusCode | Where-Object {$_ -eq 0} | Measure-Object).Count
-                if ($this.Status) {
-                    $this.LastSuccessTime = Get-Date
-                }
+                $this.LastSuccessTime = Get-Date
             }
         }
     }
