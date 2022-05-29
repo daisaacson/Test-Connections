@@ -12,7 +12,7 @@
 RootModule = 'Test-Connections.psm1'
 
 # Version number of this module.
-ModuleVersion = '2022.05.27.0'
+ModuleVersion = '2022.05.29.0'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
