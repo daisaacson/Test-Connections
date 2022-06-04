@@ -12,6 +12,7 @@ class Target {
     Target() {}
     Target([String]$TargetName,[PSObject]$Job){
         $this.TargetName = $TargetName
+        $this.DNS = $this.ResolveDNSName($TargetName)
         $this.Job = $Job
         $this.PingCount = 0
         $this.Status = $null
@@ -45,6 +46,7 @@ class Target {
         Return [PSCustomObject]@{
             Status = $s
             TargetName = $this.TargetName
+            DNS = $this.DNS
             ms = $this.Latency
             Avg = [math]::Round($this.AverageLatency(),1)
             Count = $this.PingCount
@@ -87,5 +89,14 @@ class Target {
             Return $this.LatencySum / $this.SuccessSum
         }
         Return 0
+    }
+
+    [string]ResolveDNSName([string]$DNS) {
+        Try {
+            ([ipaddress]$DNS)
+            Return (Resolve-DnsName $DNS -Type PTR).NameHost -Join ","
+        } Catch {
+            Return (Resolve-DnsName $DNS | Where-Object { $_.QueryType -match "^(A|AAAA)$" }).IPAddress -Join ","
+        }
     }
 }
